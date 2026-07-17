@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>lapsepi - admin</title>
+    <link rel="stylesheet" href="/static/main.css">
+</head>
+<body>
+    <main class="page">
+        <header class="card">
+            <div class="card-body card-body-tight page-header-row">
+                <div class="page-header-copy">
+                    <h1 class="page-title">lapsepi</h1>
+                    <p class="page-subtitle">Admin</p>
+                </div>
+                <a href="/" class="icon-button" aria-label="Home">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                         stroke-width="1.5" stroke="currentColor" class="nav-icon">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                    </svg>
+                </a>
+            </div>
+        </header>
+
+        <section class="card">
+            <form method="post" action="/network_settings">
+                <div class="card-body settings-card-body">
+                    <h2 class="section-title">Connectivity mode</h2>
+                    <p class="status-line">Current mode: {{ current_network_mode_label }}</p>
+
+                    <div class="controls-stack">
+                        <select name="mode" class="select-control" id="network-mode-select" aria-label="Network mode">
+                            {% for mode, label in network_options.modes.items() %}
+                                <option value="{{ mode }}" {% if target_network_mode == mode %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <p id="network-change-status"
+                       class="estimate-text{% if network_mode_will_change %} warning-text{% endif %}"
+                       data-current-mode="{{ current_network_mode }}"
+                       data-current-mode-known="{{ 'true' if current_network_mode_known else 'false' }}">
+                        {% if not current_network_mode_known %}
+                            Saved target mode: {{ target_network_mode_label }}
+                        {% elif network_mode_will_change %}
+                            Will change to {{ target_network_mode_label }} on reboot
+                        {% else %}
+                            No change to networking on reboot
+                        {% endif %}
+                    </p>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
+            <div class="card-body settings-card-body">
+                <h2 class="section-title">Known Wi-Fi networks</h2>
+                {% if networks %}
+                    <div class="controls-stack">
+                        <select class="select-control" id="saved-network-select" aria-label="Known Wi-Fi networks">
+                            {% for network in networks %}
+                                <option value="{{ loop.index0 }}">{{ network.ssid }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <p class="status-line">SSID: <span id="saved-network-ssid">{{ networks[0].ssid }}</span></p>
+                    <p class="status-line">Connection name: <span id="saved-network-connection">{{ networks[0].connection_name }}</span></p>
+                {% else %}
+                    <p class="status-line">No saved networks loaded yet.</p>
+                {% endif %}
+                <form method="post" action="/forget_network">
+                    <input
+                        type="hidden"
+                        name="connection_name"
+                        id="forget-network-connection"
+                        value="{{ networks[0].connection_name if networks else '' }}">
+
+                    <div class="controls-stack controls-stack-tight">
+                        <button type="button" class="button">
+                            Connect to network
+                        </button>
+
+                        <button type="submit" class="button">
+                            Forget network
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-body settings-card-body">
+                <h2 class="section-title">Add Wi-Fi network</h2>
+
+                <div class="controls-stack">
+                    <input
+                        type="text"
+                        class="text-control"
+                        placeholder="SSID"
+                        aria-label="Wi-Fi SSID">
+
+                    <input
+                        type="password"
+                        class="text-control"
+                        id="wifi-password-input"
+                        placeholder="Password"
+                        aria-label="Wi-Fi password">
+
+                    <label class="status-line">
+                        <input type="checkbox" id="show-password-toggle">
+                        Show password
+                    </label>
+
+                    <button type="button" class="button">
+                        Save network
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+<script id="saved-network-data" type="application/json">
+    {{ networks | tojson }}
+</script>
+<script>
+    const networkSettingsForm = document.querySelector('form[action="/network_settings"]');
+    const networkModeSelect = document.getElementById("network-mode-select");
+    const networkChangeStatus = document.getElementById("network-change-status");
+    const savedNetworkSelect = document.getElementById("saved-network-select");
+    const savedNetworkSsid = document.getElementById("saved-network-ssid");
+    const savedNetworkConnection = document.getElementById("saved-network-connection");
+    const savedNetworkData = document.getElementById("saved-network-data");
+    const forgetNetworkConnection = document.getElementById("forget-network-connection");
+    const wifiPasswordInput = document.getElementById("wifi-password-input");
+    const showPasswordToggle = document.getElementById("show-password-toggle");
+
+    let savedNetworks = [];
+
+    if (savedNetworkData) {
+        try {
+            savedNetworks = JSON.parse(savedNetworkData.textContent);
+        } catch (error) {
+            savedNetworks = [];
+        }
+    }
+
+    function updateNetworkChangeStatus() {
+        if (!networkModeSelect || !networkChangeStatus) {
+            return;
+        }
+
+        const currentMode = networkChangeStatus.dataset.currentMode;
+        const currentModeKnown = networkChangeStatus.dataset.currentModeKnown === "true";
+        const selectedMode = networkModeSelect.value;
+        const selectedLabel = networkModeSelect.options[networkModeSelect.selectedIndex].textContent;
+
+        if (!currentModeKnown) {
+            networkChangeStatus.textContent = `Saved target mode: ${selectedLabel}`;
+            networkChangeStatus.classList.remove("warning-text");
+            return;
+        }
+
+        if (selectedMode === currentMode) {
+            networkChangeStatus.textContent = "No change to networking on reboot";
+            networkChangeStatus.classList.remove("warning-text");
+            return;
+        }
+
+        networkChangeStatus.textContent = `Will change to ${selectedLabel} on reboot`;
+        networkChangeStatus.classList.add("warning-text");
+    }
+
+    if (networkSettingsForm && networkModeSelect) {
+        networkModeSelect.addEventListener("change", async function () {
+            updateNetworkChangeStatus();
+            try {
+                await fetch(networkSettingsForm.action, {
+                    method: "POST",
+                    body: new FormData(networkSettingsForm),
+                });
+            } catch (error) {
+                console.error("Network settings save failed", error);
+            }
+        });
+    }
+
+    if (savedNetworkSelect && savedNetworkSsid && savedNetworkConnection && savedNetworks.length) {
+        savedNetworkSelect.addEventListener("change", function () {
+            const selectedNetwork = savedNetworks[Number(savedNetworkSelect.value)];
+
+            if (!selectedNetwork) {
+                return;
+            }
+
+            savedNetworkSsid.textContent = selectedNetwork.ssid;
+            savedNetworkConnection.textContent = selectedNetwork.connection_name;
+
+            if (forgetNetworkConnection) {
+                forgetNetworkConnection.value = selectedNetwork.connection_name;
+            }
+        });
+    }
+</script>
+<script>
+    if (wifiPasswordInput && showPasswordToggle) {
+        showPasswordToggle.addEventListener("change", function () {
+            wifiPasswordInput.type = showPasswordToggle.checked ? "text" : "password";
+        });
+    }
+</script>
+</body>
+</html>

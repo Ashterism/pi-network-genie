@@ -1,0 +1,12 @@
+[Unit]
+Description=LapsePi network setup
+Before=lapsepi.service
+After=NetworkManager.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ash/lapsepi
+ExecStart=/home/ash/lapsepi/.venv/bin/python3 -m lapsepi.process.apply_network_mode
+
+[Install]
+WantedBy=multi-user.target
