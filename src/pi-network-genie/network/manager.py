@@ -1,24 +1,28 @@
+import json
 import subprocess
-from .storage import Storage
-
+from pathlib import Path
 
 
 # Handles network-related behaviour for the timelapse device.
-# This sits in the "system controls" layer rather than the core timelapse logic.
 # It stores the desired network mode, checks the current mode, and uses nmcli
 # to switch between saved Wi-Fi networks and the device hotspot.
 
 
 class NetworkManager:
-    def __init__(self):
-        # Use the shared Storage helper so network settings are saved via json in
-        # the same metadata area as the rest of the device configuration.
-        self.storage = Storage()
-        self.network_settings = self.storage.meta_dir / "network_settings.json"
+    def __init__(
+        self,
+        settings_dir=None,
+        hotspot_connection_name="project-hotspot",
+    ):
+        if settings_dir is None:
+            settings_dir = Path.home() / ".config" / "pi-network-genie"
 
-        # These are the network modes exposed to the front end.
-        # "auto" tries saved Wi-Fi first, then falls back to hotspot.
-        # "hotspot" forces the device into hotspot-only mode.
+        self.settings_dir = Path(settings_dir)
+        self.settings_dir.mkdir(parents=True, exist_ok=True)
+
+        self.network_mode_file = self.settings_dir / "network_mode.json"
+        self.hotspot_connection_name = hotspot_connection_name
+
         self.network_modes = {
             "auto": "WiFi with hotspot fallback",
             "hotspot": "Hotspot only",
@@ -33,19 +37,30 @@ class NetworkManager:
     # Save the user's preferred network mode.
     # This does not itself switch network mode; it only updates the stored target.
     def update_network_settings(self, data):
-        settings = {
-            "target_mode": data.get("mode", "hotspot"),
+        network_mode = {
+            "mode": data.get("mode", "hotspot"),
         }
 
-        self.storage.write_json(self.network_settings, settings)
-        return settings
+        with self.network_mode_file.open("w", encoding="utf-8") as file:
+            json.dump(network_mode, file, indent=2)
 
-    # Load the saved network settings.
+        return network_mode
+
+    # Load the saved network mode.
     # If nothing has been saved yet, default to hotspot mode so the device
     # remains directly accessible.
-    def get_network_settings(self):
-        saved = self.storage.read_json(self.network_settings)
-        return saved or {"target_mode": "hotspot"}
+    def get_network_mode(self):
+        if not self.network_mode_file.exists():
+            return {"mode": "hotspot"}
+
+        try:
+            with self.network_mode_file.open("r", encoding="utf-8") as file:
+                network_mode = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            return {"mode": "hotspot"}
+
+        return network_mode or {"mode": "hotspot"}
+
 
     # Check what network mode appears to be active right now.
     # This reads active NetworkManager connections via nmcli and makes a simple
@@ -61,7 +76,7 @@ class NetworkManager:
             # A potshot connection means the device hotspot is active.
             # A wlan/wifi connection suggests the Pi is connected to normal Wi-Fi.
             for name in result.stdout.splitlines():
-                if "potshot" in name.lower():
+                if self.hotspot_connection_name.lower() in name.lower():
                     return "hotspot"
 
                 if "wlan" in name.lower() or "wifi" in name.lower():
@@ -77,13 +92,13 @@ class NetworkManager:
     def enable_hotspot(self):
         try:
             subprocess.run(
-                ["nmcli", "connection", "down", "potshot-hotspot"],
+                ["nmcli", "connection", "down", self.hotspot_connection_name],
                 capture_output=True,
                 text=True,
             )
 
             result = subprocess.run(
-                ["nmcli", "connection", "up", "potshot-hotspot"],
+                ["nmcli", "connection", "up", self.hotspot_connection_name],
                 capture_output=True,
                 text=True,
             )
@@ -98,7 +113,7 @@ class NetworkManager:
     def connect_to_wifi(self, ssid):
         try:
             subprocess.run(
-                ["nmcli", "connection", "down", "potshot-hotspot"],
+                ["nmcli", "connection", "down", self.hotspot_connection_name],
                 capture_output=True,
                 text=True,
             )
@@ -119,8 +134,8 @@ class NetworkManager:
     # In auto mode, try saved Wi-Fi networks one by one and fall back to hotspot
     # if none of them connect successfully.
     def apply_target_mode(self):
-        settings = self.get_network_settings()
-        target_mode = settings.get("target_mode", "hotspot")
+        network_mode = self.get_network_mode()
+        target_mode = network_mode.get("mode", "hotspot")
 
         if target_mode == "hotspot":
             return self.enable_hotspot()
@@ -189,9 +204,7 @@ class NetworkManager:
             return networks
 
         except FileNotFoundError:
-            # running on non-Pi (e.g. Mac)
             return [{"ssid": "(nmcli not available)", "connection_name": ""}]
-        
 
     # Remove a saved Wi-Fi connection from NetworkManager.
     # This is the backend action for "forget network" in the admin UI.
@@ -207,7 +220,6 @@ class NetworkManager:
 
         except FileNotFoundError:
             return False
-    
 
     # Add and immediately connect to a new Wi-Fi network.
     # nmcli stores the successful connection so it can be reused later.
