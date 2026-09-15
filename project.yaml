@@ -1,6 +1,0 @@
-project_name: motionpi
-user: ash
-install_path: /home/ash/motionpi
-python_module: motionpi
-venv: /home/ash/motionpi/.venv
-hotspot_name: motionpi-hotspot
