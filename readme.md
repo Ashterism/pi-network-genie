@@ -1,46 +1,117 @@
 # Pi Network Genie
 
-Pi Network Genie is a small helper package for Raspberry Pi projects.
+Pi Network Genie exists for one reason: **after a Raspberry Pi boots, it should be contactable.**
 
-Its purpose is simple: get a Pi into a state where you can reliably connect to it over either Wi-Fi or its own hotspot, and ensure that connection is restored correctly after every reboot.
+It does two jobs:
 
-It can be used in two ways:
+1. Get the Pi onto a known Wi-Fi network, or fall back to its own hotspot if none work.
+2. Keep the host project's main service running so there is actually something to connect to.
 
-- By manually copying the networking files into an existing project.
-- Via the installer (coming soon).
+The networking behaviour is deliberately simple and conservative because it was developed through real Pi use. Avoid casually rewriting the Wi-Fi/hotspot switching logic.
 
----
+## Future Ash: setting up a new Pi
 
-# Manual installation
+### 1. Create the project repo first
 
-If you already have a project and just want the networking functionality, copy the following files:
+In the new project's GitHub repo, add a file called `pi-network-genie.yaml`:
 
-- `apply.py`
-- `manager.py`
-- `network_mode.json`
+```yaml
+project_name: my-project
+user: ash
+install_path: /home/ash/my-project
+service_command: /home/ash/my-project/.venv/bin/python3 -m my_project
+hotspot_connection_name: my-project-hotspot
+hotspot_ssid: my-project
+network_mode: auto
+```
 
-In `manager.py`, update the hotspot connection name to match your project.
+Change those values for the project.
 
-You can then call `apply.py` however you like to switch between Wi-Fi and hotspot modes.
+Do **not** put Wi-Fi passwords or the hotspot password in GitHub. The installer asks for them locally on the Pi.
 
-If you would like a simple web interface for managing networking, you can also copy the contents of the `web` folder. This provides a lightweight interface for:
+### 2. On the new Pi, clone the project
 
-- changing the boot network mode
-- adding Wi-Fi networks
-- forgetting saved Wi-Fi networks
+```bash
+cd ~
+git clone https://github.com/Ashterism/my-project.git
+cd my-project
+```
 
-> **Note**
->
-> Changing the network mode requires a reboot.
->
-> This package is intentionally designed this way for reliability. The selected mode is stored in `network_mode.json`, and the network configuration is applied during boot rather than while the application is running.
+### 3. Run Pi Network Genie
 
-If you want the selected network mode to be applied automatically on every boot, also copy and install the included `network.service` systemd service.
+The simplest standalone install is:
 
----
+```bash
+git clone https://github.com/Ashterism/pi-network-genie.git /tmp/pi-network-genie
+sudo bash /tmp/pi-network-genie/install.sh ./pi-network-genie.yaml
+```
 
-# Installer
+A project's own `install.sh` can later wrap those two commands so new-machine setup becomes a single command.
 
-Coming soon.
+The installer will:
 
-The installer will configure Pi Network Genie automatically using the values in `project.yml`.
+- check/install the required system packages;
+- create the Pi hotspot;
+- ask for the hotspot password locally;
+- optionally add saved Wi-Fi networks;
+- store the selected network mode outside the project repo;
+- install a boot-time Pi Network Genie systemd service;
+- install a `keep-running` systemd service for the host project;
+- enable both services.
+
+### 4. Reboot
+
+```bash
+sudo reboot
+```
+
+After boot, in `auto` mode:
+
+- Genie tries the saved Wi-Fi connections;
+- if one connects, the Pi uses it;
+- if none connect, Genie enables the Pi's hotspot;
+- the host project's service is started and kept running.
+
+In `hotspot` mode, the Pi always starts its hotspot.
+
+## Configuration
+
+`pi-network-genie.yaml` is intentionally small:
+
+| Setting | Meaning |
+| --- | --- |
+| `project_name` | Used for the project systemd service name |
+| `user` | Linux user that runs the project |
+| `install_path` | Project working directory |
+| `service_command` | Exact command systemd should use to run the project |
+| `hotspot_connection_name` | Internal NetworkManager connection name |
+| `hotspot_ssid` | Wi-Fi name broadcast by the Pi |
+| `network_mode` | `auto` or `hotspot` |
+
+Secrets are intentionally not supported in this file.
+
+## How it works
+
+Pi Network Genie uses NetworkManager through `nmcli`.
+
+The core manager supports:
+
+- `auto`: try saved Wi-Fi connections and fall back to the hotspot;
+- `hotspot`: force the hotspot;
+- listing saved networks;
+- adding and forgetting Wi-Fi networks;
+- a small optional web administration interface.
+
+Network mode is applied at boot rather than live-switched while the application is running. This is intentional: changing the network underneath the web request controlling it is fragile and can strand the Pi.
+
+Runtime state is stored under the configured user's:
+
+```text
+~/.config/pi-network-genie/
+```
+
+not inside the host project's Git repository.
+
+## Development rule
+
+The existing `NetworkManager` switching sequence is the known-good part of this project. Changes around installation, configuration and UI are fine; changes to the actual Wi-Fi/hotspot switching behaviour should be tested on a real Pi before being trusted.

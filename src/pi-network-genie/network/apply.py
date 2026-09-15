@@ -1,8 +1,13 @@
-from .manager import NetworkManager
+try:
+    from .manager import NetworkManager
+except ImportError:
+    from manager import NetworkManager
+
 
 def main():
     n = NetworkManager()
     n.apply_target_mode()
+
 
 if __name__ == "__main__":
     main()

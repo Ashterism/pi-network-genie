@@ -1,0 +1,10 @@
+# Copy this into the host project as pi-network-genie.yaml and edit the values.
+# Do not put Wi-Fi or hotspot passwords in this file.
+
+project_name: my-project
+user: ash
+install_path: /home/ash/my-project
+service_command: /home/ash/my-project/.venv/bin/python3 -m my_project
+hotspot_connection_name: my-project-hotspot
+hotspot_ssid: my-project
+network_mode: auto
