@@ -2,9 +2,14 @@
 # Do not put Wi-Fi or hotspot passwords in this file.
 
 project_name: my-project
+device_name: my-pi
 user: ash
 install_path: /home/ash/my-project
 service_command: /home/ash/my-project/.venv/bin/python3 -m my_project
-hotspot_connection_name: my-project-hotspot
-hotspot_ssid: my-project
 network_mode: auto
+
+# Optional overrides. Normally leave these out and Genie will use:
+#   hotspot_connection_name: <device_name>-hotspot
+#   hotspot_ssid: <device_name>
+# hotspot_connection_name: my-pi-hotspot
+# hotspot_ssid: my-pi
