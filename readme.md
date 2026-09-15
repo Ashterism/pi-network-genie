@@ -17,15 +17,23 @@ In the new project's GitHub repo, add a file called `pi-network-genie.yaml`:
 
 ```yaml
 project_name: my-project
+device_name: my-pi
 user: ash
 install_path: /home/ash/my-project
 service_command: /home/ash/my-project/.venv/bin/python3 -m my_project
-hotspot_connection_name: my-project-hotspot
-hotspot_ssid: my-project
 network_mode: auto
 ```
 
-Change those values for the project.
+`project_name` identifies the software/service. `device_name` identifies the physical Pi. Several Pis can therefore run the same project without all advertising the same hotspot.
+
+By default Genie derives:
+
+```text
+hotspot SSID: <device_name>
+NetworkManager connection: <device_name>-hotspot
+```
+
+You can override `hotspot_ssid` or `hotspot_connection_name` in the YAML if needed, but normally you should not.
 
 Do **not** put Wi-Fi passwords or the hotspot password in GitHub. The installer asks for them locally on the Pi.
 
@@ -46,7 +54,7 @@ git clone https://github.com/Ashterism/pi-network-genie.git /tmp/pi-network-geni
 sudo bash /tmp/pi-network-genie/install.sh ./pi-network-genie.yaml
 ```
 
-A project's own `install.sh` can later wrap those two commands so new-machine setup becomes a single command.
+A project's own `install.sh` can wrap those two commands so new-machine setup becomes a single command.
 
 The installer will:
 
@@ -76,17 +84,16 @@ In `hotspot` mode, the Pi always starts its hotspot.
 
 ## Configuration
 
-`pi-network-genie.yaml` is intentionally small:
-
 | Setting | Meaning |
 | --- | --- |
-| `project_name` | Used for the project systemd service name |
+| `project_name` | Software/project identity and project systemd service name |
+| `device_name` | Physical Pi identity; normally becomes the hotspot SSID |
 | `user` | Linux user that runs the project |
 | `install_path` | Project working directory |
 | `service_command` | Exact command systemd should use to run the project |
-| `hotspot_connection_name` | Internal NetworkManager connection name |
-| `hotspot_ssid` | Wi-Fi name broadcast by the Pi |
 | `network_mode` | `auto` or `hotspot` |
+| `hotspot_connection_name` | Optional override for NetworkManager's local profile name |
+| `hotspot_ssid` | Optional override for the Wi-Fi name broadcast by the Pi |
 
 Secrets are intentionally not supported in this file.
 
