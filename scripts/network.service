@@ -1,12 +1,17 @@
 [Unit]
-Description=LapsePi network setup
-Before=lapsepi.service
+Description=Pi Network Genie network setup for {{PROJECT_NAME}}
+Before={{PROJECT_NAME}}.service
 After=NetworkManager.service
+Wants=NetworkManager.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/ash/lapsepi
-ExecStart=/home/ash/lapsepi/.venv/bin/python3 -m lapsepi.process.apply_network_mode
+Environment=HOME={{USER_HOME}}
+Environment=PI_NETWORK_GENIE_SETTINGS_DIR={{SETTINGS_DIR}}
+Environment=PI_NETWORK_GENIE_HOTSPOT_CONNECTION={{HOTSPOT_CONNECTION_NAME}}
+WorkingDirectory={{GENIE_PATH}}
+ExecStart=/usr/bin/python3 {{GENIE_PATH}}/src/pi-network-genie/network/apply.py
+RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
