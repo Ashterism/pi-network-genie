@@ -1,9 +1,10 @@
 import json
+import os
 import subprocess
 from pathlib import Path
 
 
-# Handles network-related behaviour for the timelapse device.
+# Handles network-related behaviour for the host Raspberry Pi project.
 # It stores the desired network mode, checks the current mode, and uses nmcli
 # to switch between saved Wi-Fi networks and the device hotspot.
 
@@ -12,10 +13,21 @@ class NetworkManager:
     def __init__(
         self,
         settings_dir=None,
-        hotspot_connection_name="project-hotspot",
+        hotspot_connection_name=None,
     ):
         if settings_dir is None:
-            settings_dir = Path.home() / ".config" / "pi-network-genie"
+            configured_settings_dir = os.environ.get("PI_NETWORK_GENIE_SETTINGS_DIR")
+            settings_dir = (
+                Path(configured_settings_dir)
+                if configured_settings_dir
+                else Path.home() / ".config" / "pi-network-genie"
+            )
+
+        if hotspot_connection_name is None:
+            hotspot_connection_name = os.environ.get(
+                "PI_NETWORK_GENIE_HOTSPOT_CONNECTION",
+                "project-hotspot",
+            )
 
         self.settings_dir = Path(settings_dir)
         self.settings_dir.mkdir(parents=True, exist_ok=True)
@@ -61,7 +73,6 @@ class NetworkManager:
 
         return network_mode or {"mode": "hotspot"}
 
-
     # Check what network mode appears to be active right now.
     # This reads active NetworkManager connections via nmcli and makes a simple
     # judgement based on the active connection names.
@@ -73,7 +84,7 @@ class NetworkManager:
                 text=True,
             )
 
-            # A potshot connection means the device hotspot is active.
+            # The configured hotspot connection means the device hotspot is active.
             # A wlan/wifi connection suggests the Pi is connected to normal Wi-Fi.
             for name in result.stdout.splitlines():
                 if self.hotspot_connection_name.lower() in name.lower():
