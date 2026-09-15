@@ -31,6 +31,7 @@ read_config() {
 }
 
 PROJECT_NAME="$(read_config project_name)"
+DEVICE_NAME="$(read_config device_name)"
 PROJECT_USER="$(read_config user)"
 INSTALL_PATH="$(read_config install_path)"
 SERVICE_COMMAND="$(read_config service_command)"
@@ -38,7 +39,15 @@ HOTSPOT_CONNECTION_NAME="$(read_config hotspot_connection_name)"
 HOTSPOT_SSID="$(read_config hotspot_ssid)"
 NETWORK_MODE="$(read_config network_mode)"
 
-for value_name in PROJECT_NAME PROJECT_USER INSTALL_PATH SERVICE_COMMAND HOTSPOT_CONNECTION_NAME HOTSPOT_SSID NETWORK_MODE; do
+if [[ -z "$HOTSPOT_CONNECTION_NAME" && -n "$DEVICE_NAME" ]]; then
+  HOTSPOT_CONNECTION_NAME="${DEVICE_NAME}-hotspot"
+fi
+
+if [[ -z "$HOTSPOT_SSID" && -n "$DEVICE_NAME" ]]; then
+  HOTSPOT_SSID="$DEVICE_NAME"
+fi
+
+for value_name in PROJECT_NAME DEVICE_NAME PROJECT_USER INSTALL_PATH SERVICE_COMMAND HOTSPOT_CONNECTION_NAME HOTSPOT_SSID NETWORK_MODE; do
   if [[ -z "${!value_name}" ]]; then
     echo "Missing required config value: $value_name"
     exit 1
@@ -62,8 +71,10 @@ PROJECT_SERVICE_NAME="${PROJECT_NAME}.service"
 
 printf '\nPi Network Genie installer\n'
 printf 'Project: %s\n' "$PROJECT_NAME"
+printf 'Device: %s\n' "$DEVICE_NAME"
 printf 'User: %s\n' "$PROJECT_USER"
 printf 'Project path: %s\n' "$INSTALL_PATH"
+printf 'Hotspot: %s (%s)\n' "$HOTSPOT_SSID" "$HOTSPOT_CONNECTION_NAME"
 printf 'Network mode: %s\n\n' "$NETWORK_MODE"
 
 apt-get update
