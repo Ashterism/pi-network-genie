@@ -43,7 +43,7 @@ The simplest standalone install is:
 
 ```bash
 git clone https://github.com/Ashterism/pi-network-genie.git /tmp/pi-network-genie
-sudo /tmp/pi-network-genie/install.sh ./pi-network-genie.yaml
+sudo bash /tmp/pi-network-genie/install.sh ./pi-network-genie.yaml
 ```
 
 A project's own `install.sh` can later wrap those two commands so new-machine setup becomes a single command.
